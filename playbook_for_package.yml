@@ -1,0 +1,22 @@
+---
+- name: Deploy and run package installation script for system monitoring dependencies
+  hosts: project
+  become: yes  # Run tasks as root
+  tasks:
+    - name: Copy install_required_packages.sh to target server
+      copy:
+        src: /home/ubuntu/package.sh  # Path to script on control machine
+        dest: /tmp/install_required_packages.sh
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Run the package installation script
+      command: /tmp/install_required_packages.sh
+      register: script_output
+      changed_when: false  # Command is idempotent
+
+    - name: Display script output
+      debug:
+        msg: "{{ script_output.stdout_lines }}"
+      when: script_output.stdout_lines is defined

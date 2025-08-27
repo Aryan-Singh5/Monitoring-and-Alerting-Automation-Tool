@@ -1,0 +1,67 @@
+---
+- name: Deploy and run system monitoring and alert script on target servers
+  hosts: project
+  become: yes  # Run tasks as root
+  tasks:
+    - name: Install required packages # this will ensure the reqired packages
+       apt:
+        name:
+          - procps
+          - bc
+          - mailutils
+          - curl
+          - ssmtp
+          - sysstat
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Configure ssmtp.conf for Gmail
+      copy:
+        content: |
+          root=youremail@gmail.com # replace with your email
+          mailhub=smtp.gmail.com:587
+          AuthUser=youremail@gmail.com
+          AuthPass=sxyrjdwyshfyhjnkg #A Gmail App Password (not your regular password
+          UseSTARTTLS=YES
+          FromLineOverride=YES
+        dest: /etc/ssmtp/ssmtp.conf
+        mode: '0640'
+        owner: root
+        group: mail
+      no_log: true  # Prevent logging sensitive data
+
+    - name: Configure ssmtp revaliases
+      copy:
+        content: |
+          root:youremail@gmail.com:smtp.gmail.com:587
+        dest: /etc/ssmtp/revaliases
+        mode: '0640'
+        owner: root
+        group: mail
+
+    - name: Ensure log directory exists
+      file:
+        path: /var/log/monitor
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Copy system_monitor_alert.sh to target server
+      copy:
+        src: /home/ubuntu/system_monitor_alert.sh  # Path to combined script on control machine
+        dest: /tmp/system_monitor_alert.sh
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Run the monitoring and alert script
+      command: /tmp/system_monitor_alert.sh
+      register: script_output
+      changed_when: false  # Command is idempotent
+
+    - name: Display script alerts
+      debug:
+        msg: "{{ script_output.stdout_lines | select('search', 'ALERT') | list }}"
+      when: script_output.stdout_lines is defined
